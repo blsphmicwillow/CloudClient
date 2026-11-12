@@ -37,6 +37,8 @@ public final class WingRig {
     private final Mat4 toWorld = new Mat4();
 
     private WingState state = WingState.IDLE;
+    private float spreadScale = 1.0F;
+    private float flapScale = 1.0F;
     private float phase;
     private float currentSpread = WingState.IDLE.spreadDeg();
     private float currentAmplitude = WingState.IDLE.amplitudeDeg();
@@ -58,6 +60,26 @@ public final class WingRig {
         this.state = state;
     }
 
+    /**
+     * User tuning: scales the state preset rather than replacing it, so
+     * sprinting still looks different from idling at any slider position.
+     *
+     * @param spreadScale multiplier on the wing spread angle
+     * @param flapScale   multiplier on the flap frequency
+     */
+    public void configure(float spreadScale, float flapScale) {
+        this.spreadScale = FastMath.clamp(spreadScale, 0.2F, 2.0F);
+        this.flapScale = FastMath.clamp(flapScale, 0.1F, 3.0F);
+    }
+
+    public float spreadScale() {
+        return spreadScale;
+    }
+
+    public float flapScale() {
+        return flapScale;
+    }
+
     /** Current root flap angle, exposed for tests and for HUD debug. */
     public float flapDegrees() {
         return flapDegrees;
@@ -77,9 +99,11 @@ public final class WingRig {
     public void update(float dt, Vec3 anchor, float yawDeg) {
         if (dt < 0.0F) dt = 0.0F;
         // Smooth state transitions so sprinting does not snap the wings.
-        currentSpread = FastMath.damp(currentSpread, state.spreadDeg(), 0.18F, dt);
+        currentSpread = FastMath.damp(currentSpread, state.spreadDeg() * spreadScale,
+                0.18F, dt);
         currentAmplitude = FastMath.damp(currentAmplitude, state.amplitudeDeg(), 0.18F, dt);
-        currentFrequency = FastMath.damp(currentFrequency, state.frequencyHz(), 0.25F, dt);
+        currentFrequency = FastMath.damp(currentFrequency, state.frequencyHz() * flapScale,
+                0.25F, dt);
 
         phase += dt * currentFrequency * 6.2831855F;
         if (phase > 6.2831855F * 1024.0F) phase -= 6.2831855F * 1024.0F;

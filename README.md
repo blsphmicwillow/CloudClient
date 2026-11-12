@@ -27,10 +27,10 @@ This is a large specification, so the honest split between *working*,
 | Cosmetic renderer | **Done** | Batched Tessellator draws, animated texture V-offset, LOD math; compiles against 1.8.9 |
 | `.cloudpack` format + loader | **Done** | Zip-slip rejection, size/poly budgets, PNG header checks, script rejection, registry |
 | HUD (FPS, CPS, keystrokes, armour) | **Done** | Positions come from `HudLayout`, editable by dragging in the menu |
-| Mod menu (right-shift) | **Done** | Searchable module list, sliders, toggles, colour cycling, keybind capture, HUD drag editor; settings are declared per module, so the UI is generic |
+| Mod menu (right-shift) | **Done** | Searchable module list, sliders, toggles, colour cycling, keybind capture, HUD drag editor; settings are declared per module, so the UI is generic. Slider values are read into `CosmeticTuning` every tick, so cape/wing/halo/horn/pet changes apply live |
 | Entity culling | **Done** | `RenderLivingEvent.Pre`, render-only, never culls players or dropped items, off by default |
 | Dynamic render distance | **Done** | Hysteresis + cooldown; off by default |
-| Launcher (account + boot) | **MVP** | Device-code Microsoft login, 1.8.9 + Forge install, classpath/natives assembly, offline UUIDs; `--dry-run` verified, a full boot is not |
+| Launcher (account + boot) | **MVP** | Own window (painted cloud badge by the account name), device-code Microsoft login, 1.8.9 + Forge install, libraries, natives, **asset index + objects (verified)**, classpath assembly, offline UUIDs; a full boot from a clean directory is not verified |
 | Chunk-mesh worker pool | **Not started** | Multi-threaded `RenderChunk` replacement is the single largest remaining perf task |
 | LWJGL3 bridge | **Not started** | Optional path only; see roadmap |
 | Friends / parties / replay | **Not started** | Needs a backend; deliberately out of scope for a client-only build |
@@ -43,7 +43,11 @@ This is a large specification, so the honest split between *working*,
   (`--release 8`), covering the event bus, JSON, config, module lifecycle,
   anchor transforms, matrices, fast maths, cape stability, wing motion, pet
   flocking, halo/horn geometry, LOD continuity, profile round-trips and the pack
-  loader's reject cases.
+  loader's reject cases. A second suite covers HUD layout maths, key names and
+  cosmetic tuning (34 more assertions, including the `clear()` crash above).
+- **Launcher assets: verified.** `assets` ran against the live 1.8.9 index:
+  734 index entries resolved to 722 unique SHA-1 objects, all downloaded and
+  size/hash checked.
 - **Forge layer: compiles.** `gradle build` produces a reobfuscated
   `cloud-client-0.1.0.jar` (115 classes) with JDK 8 + Gradle 2.14.1 +
   ForgeGradle 2.1 against mappings `stable_22`. Every hook is a public Forge

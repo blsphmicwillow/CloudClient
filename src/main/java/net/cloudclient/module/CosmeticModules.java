@@ -25,12 +25,14 @@ public final class CosmeticModules {
 
         Toggle cape = new Toggle("cosmetic.cape", "Animated Capes",
                 "Verlet cloth capes with animation states", 20, true);
-        cape.settingNumber("stiffness", "Stiffness", "How firmly the cloth holds its shape",
-                0.90F, 0.50F, 1.00F);
-        cape.settingNumber("wind", "Wind", "Strength of ambient wind on the cloth",
+        // Multipliers, not absolutes: 1.0 keeps each animation state's own
+        // character (sprinting still trails more than idling).
+        cape.settingNumber("stiffness", "Stiffness", "Scales how firmly the cloth holds its shape",
+                1.00F, 0.30F, 1.60F);
+        cape.settingNumber("wind", "Wind", "Scales ambient wind on the cloth",
                 1.00F, 0.00F, 2.50F);
-        cape.settingNumber("flutter", "Flutter", "Travelling-wave amplitude",
-                0.40F, 0.00F, 1.50F);
+        cape.settingNumber("flutter", "Flutter", "Scales the travelling-wave amplitude",
+                1.00F, 0.00F, 2.00F);
         modules.add(cape);
 
         Toggle wings = new Toggle("cosmetic.wings", "Wings",

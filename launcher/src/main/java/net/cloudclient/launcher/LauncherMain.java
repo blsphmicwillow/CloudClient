@@ -141,6 +141,8 @@ public final class LauncherMain {
                     + " (single-player and offline-mode servers only).");
         } else if ("launch".equals(command)) {
             launcher.launchGame();
+        } else if ("assets".equals(command)) {
+            launcher.downloadAssetsOnly();
         } else {
             usage();
         }
@@ -152,6 +154,7 @@ public final class LauncherMain {
         System.out.println("  login [--client-id ID]   sign in with a Microsoft account");
         System.out.println("  offline <name>           create an offline profile");
         System.out.println("  launch [--dry-run]       install 1.8.9 + Forge if needed, then boot");
+        System.out.println("  assets                   download/repair the 1.8.9 asset objects");
         System.out.println("  --screenshot PATH        render the window to a PNG\n");
         System.out.println("Options: --game-dir DIR (default ~/.cloudclient)");
         System.out.println("Forge: " + FORGE_VERSION);
@@ -284,6 +287,7 @@ public final class LauncherMain {
             }
             log.progress(0.25F);
             downloadLibraries(spec, librariesDir, nativesDir);
+            downloadAssets(spec, assetsDir);
             installMod();
         }
 
@@ -371,6 +375,81 @@ public final class LauncherMain {
             }
         }
         log.progress(0.55F);
+    }
+
+    /**
+     * Downloads the asset index and every object it references.
+     *
+     * <p>A standalone launcher cannot borrow Mojang's asset cache, and 1.8.9
+     * still reads sounds and language files from {@code assets/objects}.
+     * Objects are content-addressed: an existing file with the expected size is
+     * trusted, and anything downloaded is verified against its SHA-1.
+     */
+    private void downloadAssets(LaunchSpec spec, File assetsDir) throws IOException {
+        if (spec.assetsUrl == null || spec.assetsUrl.isEmpty()) {
+            log.line("No asset index in the version metadata; skipping assets.");
+            return;
+        }
+        File indexFile = new File(new File(assetsDir, "indexes"), spec.assetIndex + ".json");
+        Downloader.fetch(spec.assetsUrl, indexFile, null);
+
+        Map<String, Object> index = Json.asObject(Json.parse(readFile(indexFile)));
+        Map<String, Object> objects = Json.child(index, "objects");
+        if (objects == null || objects.isEmpty()) {
+            log.line("Asset index is empty; nothing to download.");
+            return;
+        }
+
+        log.line("Checking " + objects.size() + " game assets...");
+        File objectsDir = new File(assetsDir, "objects");
+        int checked = 0;
+        int downloaded = 0;
+        for (Map.Entry<String, Object> entry : objects.entrySet()) {
+            if (!(entry.getValue() instanceof Map)) continue;
+            Map<String, Object> object = Json.asObject(entry.getValue());
+            String hash = Json.getString(object, "hash", null);
+            if (hash == null || hash.length() < 4) continue;
+            int size = Json.getInt(object, "size", -1);
+
+            String prefix = hash.substring(0, 2);
+            File target = new File(new File(objectsDir, prefix), hash);
+            if (!target.isFile() || (size >= 0 && target.length() != size)) {
+                Downloader.fetch("https://resources.download.minecraft.net/" + prefix
+                        + "/" + hash, target, hash);
+                downloaded++;
+            }
+
+            checked++;
+            if (checked % 200 == 0) {
+                log.progress(0.55F + 0.30F * (checked / (float) objects.size()));
+            }
+        }
+        log.line("Assets ready: " + objects.size() + " objects, " + downloaded
+                + " downloaded.");
+        log.progress(0.9F);
+    }
+
+    /** Downloads the asset index and objects only, for repairing an install. */
+    public void downloadAssetsOnly() throws IOException {
+        File versionsDir = new File(gameDir, "versions");
+        Map<String, Object> manifest = fetchJson(VERSION_MANIFEST);
+        String versionUrl = null;
+        for (Object entry : Json.children(manifest, "versions")) {
+            Map<String, Object> version = Json.asObject(entry);
+            if (MC_VERSION.equals(Json.getString(version, "id", ""))) {
+                versionUrl = Json.getString(version, "url", null);
+                break;
+            }
+        }
+        if (versionUrl == null) throw new IOException("1.8.9 not in the version manifest");
+
+        File baseJsonFile = new File(new File(versionsDir, MC_VERSION), MC_VERSION + ".json");
+        if (!baseJsonFile.isFile() || baseJsonFile.length() == 0) {
+            Downloader.fetch(versionUrl, baseJsonFile, null);
+        }
+        Map<String, Object> baseJson = Json.asObject(Json.parse(readFile(baseJsonFile)));
+        LaunchSpec spec = LaunchSpec.from(baseJson, baseJson);
+        downloadAssets(spec, new File(gameDir, "assets"));
     }
 
     private void extractNatives(File jar, File nativesDir) throws IOException {

@@ -109,6 +109,49 @@ public final class CloudClientRuntime {
         return renderer;
     }
 
+    private final net.cloudclient.cosmetic.CosmeticTuning tuning =
+            new net.cloudclient.cosmetic.CosmeticTuning();
+
+    public net.cloudclient.cosmetic.CosmeticTuning tuning() {
+        return tuning;
+    }
+
+    /**
+     * Re-reads the cosmetic sliders into the tuning object. Runs once per tick:
+     * a handful of map lookups, and it means slider changes apply live without
+     * restarting the simulation.
+     */
+    public void refreshTuning() {
+        net.cloudclient.core.config.CloudConfig c = config;
+        tuning.capeStiffness = (float) c.getDoubleClamped(
+                "module.cosmetic.cape.stiffness", 1.0D, 0.30D, 1.60D);
+        tuning.capeWind = (float) c.getDoubleClamped(
+                "module.cosmetic.cape.wind", 1.0D, 0.0D, 2.50D);
+        tuning.capeFlutter = (float) c.getDoubleClamped(
+                "module.cosmetic.cape.flutter", 1.0D, 0.0D, 2.00D);
+
+        tuning.haloSpin = (float) c.getDoubleClamped(
+                "module.cosmetic.halo.spin", 45.0D, 0.0D, 360.0D);
+        tuning.haloPulse = (float) c.getDoubleClamped(
+                "module.cosmetic.halo.pulse", 0.18D, 0.0D, 0.90D);
+        tuning.haloColour = c.getInt("module.cosmetic.halo.colour", 0xFFD27A);
+
+        tuning.hornScale = (float) c.getDoubleClamped(
+                "module.cosmetic.horns.scale", 1.0D, 0.20D, 3.00D);
+        tuning.hornPitch = (float) c.getDoubleClamped(
+                "module.cosmetic.horns.pitch", 18.0D, -60.0D, 75.0D);
+
+        tuning.wingSpread = (float) c.getDoubleClamped(
+                "module.cosmetic.wings.spread", 1.0D, 0.20D, 2.00D);
+        tuning.wingFlap = (float) c.getDoubleClamped(
+                "module.cosmetic.wings.flap_speed", 1.0D, 0.10D, 3.00D);
+        tuning.wingParticles = c.getBool("module.cosmetic.wings.particles", true);
+
+        tuning.petScale = (float) c.getDoubleClamped(
+                "module.cosmetic.pets.scale", 1.0D, 0.30D, 2.50D);
+        tuning.sanitise();
+    }
+
     public Hud hud() {
         return hud;
     }
@@ -141,7 +184,9 @@ public final class CloudClientRuntime {
             mc.displayGuiScreen(new CloudModMenu(this));
         }
 
-        ticker.tick(cosmetics, mc, profile);
+        refreshTuning();
+        cosmetics.setTuning(tuning);
+        ticker.tick(this, cosmetics, mc, profile);
         net.cloudclient.module.PerformanceModules.DynamicRenderDistance dynamic =
                 modules.get(net.cloudclient.module.PerformanceModules.DynamicRenderDistance.class);
         if (dynamic != null) dynamic.tick(mc);

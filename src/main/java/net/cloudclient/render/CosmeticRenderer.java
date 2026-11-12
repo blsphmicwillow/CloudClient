@@ -1,6 +1,7 @@
 package net.cloudclient.render;
 
 import net.cloudclient.CloudClientRuntime;
+import net.cloudclient.cosmetic.CosmeticTuning;
 import net.cloudclient.cosmetic.CosmeticType;
 import net.cloudclient.cosmetic.CosmeticWorld;
 import net.cloudclient.cosmetic.asset.AnimatedTexture;
@@ -110,7 +111,7 @@ public final class CosmeticRenderer {
         }
         if (runtime.profile().isEquipped(CosmeticType.HALO)
                 && runtime.isEnabled("cosmetic.halo")) {
-            drawHalo(mc, state);
+            drawHalo(mc, state, runtime);
         }
         if (runtime.profile().isEquipped(CosmeticType.HORNS)
                 && runtime.isEnabled("cosmetic.horns")) {
@@ -211,7 +212,8 @@ public final class CosmeticRenderer {
 
     // ------------------------------------------------------------------ halo
 
-    private void drawHalo(Minecraft mc, CosmeticWorld.PlayerCosmetics state) {
+    private void drawHalo(Minecraft mc, CosmeticWorld.PlayerCosmetics state,
+                          CloudClientRuntime runtime) {
         mc.getTextureManager().bindTexture(HALO_TEXTURE);
 
         // Head space, then lift to the crown and apply hover + spin.
@@ -220,8 +222,12 @@ public final class CosmeticRenderer {
         headMatrix.rotateY(state.halo.angleDegrees());
 
         float brightness = 0.55F + state.halo.brightness() * 0.45F;
+        CosmeticTuning tuning = runtime.tuning();
         GlStateManager.disableCull();
-        GlStateManager.color(brightness, brightness, brightness, 1.0F);
+        // Tint: the texture is greyscale-ish, so multiplying by the configured
+        // colour is enough to recolour the halo without a second texture.
+        GlStateManager.color(brightness * tuning.haloRed(),
+                brightness * tuning.haloGreen(), brightness * tuning.haloBlue(), 1.0F);
 
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
@@ -287,7 +293,8 @@ public final class CosmeticRenderer {
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
         for (Pet pet : pets) {
-            float size = pet.type().restingSize() * pet.scale();
+            float size = pet.type().restingSize() * pet.scale()
+                    * runtime.tuning().petScale;
             double px = pet.position().x - mc.getRenderManager().viewerPosX;
             double py = pet.position().y - mc.getRenderManager().viewerPosY
                     + 0.35D + runtime.cosmetics().pets().bob(pet);

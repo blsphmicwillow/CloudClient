@@ -20,6 +20,14 @@ mkdir -p "$DIST/$NAME/build/libs" "$DIST/$NAME/scripts" "$DIST/$NAME/docs"
 
 cp "$JAR" "$DIST/$NAME/build/libs/"
 
+# The standalone launcher, when it has been built.
+LAUNCHER="launcher/build/cloud-launcher.jar"
+if [ -f "$LAUNCHER" ]; then
+  cp "$LAUNCHER" "$DIST/$NAME/"
+else
+  echo "note: $LAUNCHER not built; packaging the mod only" >&2
+fi
+
 cp install.sh "$DIST/$NAME/"
 cp README.md ROADMAP.md "$DIST/$NAME/" 2>/dev/null || true
 cp docs/FAIRPLAY.md docs/CLOUDPACK.md "$DIST/$NAME/docs/" 2>/dev/null || true

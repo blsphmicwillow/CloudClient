@@ -91,6 +91,17 @@ On first run this:
 
 Everything lives under `~/.cloudclient` (`--game-dir` overrides it).
 
+### Assets
+
+Minecraft's sounds and language files live in an asset cache that the vanilla
+launcher would normally own. Because this launcher is standalone, `launch`
+downloads the 1.8.9 asset index and every object itself (content-addressed, each
+verified by SHA-1). To repair a partial download without launching:
+
+```bash
+java -jar build/cloud-launcher.jar assets
+```
+
 ### Dry run
 
 `launch --dry-run` resolves the version, libraries, classpath and arguments and

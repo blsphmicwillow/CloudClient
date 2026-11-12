@@ -15,6 +15,7 @@ import net.cloudclient.cosmetic.pet.Pet;
 import net.cloudclient.cosmetic.pet.PetFlock;
 import net.cloudclient.cosmetic.wings.WingRig;
 import net.cloudclient.cosmetic.wings.WingState;
+import net.cloudclient.math.FastMath;
 import net.cloudclient.math.Vec3;
 
 /**
@@ -54,6 +55,7 @@ public final class CosmeticWorld {
     private final AnchorSolver anchors = new AnchorSolver();
     private final PetFlock pets = new PetFlock();
     private final Vec3 wind = new Vec3();
+    private CosmeticTuning tuning = new CosmeticTuning();
     private int tick;
 
     public PlayerCosmetics get(int entityId, int currentTick) {
@@ -68,6 +70,15 @@ public final class CosmeticWorld {
 
     public PetFlock pets() {
         return pets;
+    }
+
+    public CosmeticTuning tuning() {
+        return tuning;
+    }
+
+    /** Applied to every player on the next update; values are clamped by the caller. */
+    public void setTuning(CosmeticTuning tuning) {
+        if (tuning != null) this.tuning = tuning;
     }
 
     public int tick() {
@@ -108,13 +119,24 @@ public final class CosmeticWorld {
                 !onGround && pc.velocity.y < 0.0F, gliding);
         CapeParams target = capeState.hidesCape() ? CapeParams.idle() : capeState.params();
 
+        // Sliders scale the state preset, so a sprinting cape still trails more
+        // than an idle one no matter where the stiffness slider sits.
+        target.stiffness = FastMath.clamp(target.stiffness * tuning.capeStiffness, 0.05F, 1.0F);
+        target.windScale *= tuning.capeWind;
+        target.flutterAmp = FastMath.clamp(target.flutterAmp * tuning.capeFlutter, 0.0F, 2.0F);
+
         // No global weather wind yet; velocity-driven trail does the work.
         wind.set(0.0F, 0.0F, 0.0F);
         pc.cape.update(dt, pc.anchorLeft, pc.anchorRight, wind, pc.velocity, pc.position, target);
 
         pc.wings.setState(WingState.derive(speed, onGround, gliding));
+        pc.wings.configure(tuning.wingSpread, tuning.wingFlap);
         pc.wings.update(dt, pc.backAnchor, bodyYaw);
+
+        pc.halo.configure(tuning.haloSpin, 0.55F, tuning.haloPulse, 0.03F, 0.35F);
         pc.halo.update(dt);
+
+        pc.horns.size(tuning.hornScale).angles(tuning.hornPitch, 6.0F);
     }
 
     /**
