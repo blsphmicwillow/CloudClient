@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.7.11",
+  "package": "net.cloudclient.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "mixins.cloudclient.refmap.json",
+  "client": [
+    "MixinRenderManager",
+    "MixinEffectRenderer"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,23 @@
+# Gradle / ForgeGradle
+.gradle/
+build/
+out/
+run/
+
+# Third-party runtime jars fetched by scripts/fetch_mixin.sh
+libs/
+
+# Packaging output
+dist/
+
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

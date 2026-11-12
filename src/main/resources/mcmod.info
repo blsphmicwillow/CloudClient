@@ -1,0 +1,21 @@
+[
+  {
+    "modid": "cloudclient",
+    "name": "Cloud Client",
+    "description": "A client-side 1.8.9 PvP client: Verlet cape physics, rigged wings, halos, horns, local pets, HUD modules and fair-play performance options. Cosmetics are local-only and never replicated.",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "url": "",
+    "updateUrl": "",
+    "authorList": ["Cloud Client"],
+    "credits": "Built from scratch. No Lunar Client code or assets are used.",
+    "logoFile": "",
+    "screenshots": [],
+    "parent": "",
+    "clientSideOnly": true,
+    "requiredMods": [],
+    "dependencies": [],
+    "dependants": [],
+    "useDependencyInformation": false
+  }
+]
