@@ -154,8 +154,11 @@ detect_instances() {
 }
 
 find_jar() {
+  # A local build of the current version wins; otherwise use the released jar
+  # shipped in prebuilt/, which lets a fresh checkout install without a build.
   local candidates=(
     "$SCRIPT_DIR/build/libs/$JAR_NAME"
+    "$SCRIPT_DIR/prebuilt/$JAR_NAME"
     "$SCRIPT_DIR/build/libs/cloud-client-${VERSION}.jar"
     "$SCRIPT_DIR/libs/$JAR_NAME"
     "$SCRIPT_DIR/$JAR_NAME"
@@ -202,6 +205,9 @@ PY
 check_stale() {
   local jar="$1"
   [ "$FORCE" -eq 1 ] && return 0
+  # prebuilt/ holds the released jar, so it is expected to be older than any
+  # local edits; only locally compiled jars are checked for staleness.
+  case "$jar" in "$SCRIPT_DIR/prebuilt/"*) return 0 ;; esac
   [ -d "$SCRIPT_DIR/src" ] || return 0
   local newer
   newer="$(find "$SCRIPT_DIR/src" -name '*.java' -newer "$jar" -print -quit 2>/dev/null || true)"

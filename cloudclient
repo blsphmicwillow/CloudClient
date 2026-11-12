@@ -16,8 +16,13 @@ cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 JAR="launcher/build/cloud-launcher.jar"
 
 if [ ! -f "$JAR" ]; then
-  echo "Building the launcher (first run only)..."
-  ./launcher/build.sh
+  if [ -f prebuilt/cloud-launcher.jar ]; then
+    # Released jar, so a fresh checkout needs no JDK toolchain to run.
+    JAR="prebuilt/cloud-launcher.jar"
+  else
+    echo "Building the launcher (first run only)..."
+    ./launcher/build.sh
+  fi
 fi
 
 JAVA_BIN=""

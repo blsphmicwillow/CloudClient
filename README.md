@@ -66,6 +66,12 @@ This is a large specification, so the honest split between *working*,
 
 ## Building
 
+A fresh checkout does **not** need to be built: `prebuilt/` ships the released
+mod and launcher jars, so `./install.sh` and `./cloudclient` work immediately.
+Rebuild with `./scripts/build.sh` after changing source — the installer refuses
+a locally built jar that is older than the source tree, so a forgotten rebuild
+cannot silently install old code.
+
 1.8.9 pins the toolchain: **Gradle 2.14.x + JDK 8**, ForgeGradle 2.1.
 
 ```bash
