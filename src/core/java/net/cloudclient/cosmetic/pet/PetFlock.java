@@ -53,8 +53,13 @@ public final class PetFlock {
         return pets.remove(pet);
     }
 
+    /** Read-only view: call {@link #add} and {@link #remove} to mutate. */
     public List<Pet> pets() {
         return Collections.unmodifiableList(pets);
+    }
+
+    public void clear() {
+        pets.clear();
     }
 
     public int size() {

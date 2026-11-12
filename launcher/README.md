@@ -18,6 +18,20 @@ cd launcher
 Only a JDK is required (8 or newer). No Gradle, no dependencies, no network at
 build time.
 
+## The window
+
+```bash
+java -jar build/cloud-launcher.jar
+```
+
+This is Cloud Client's own front end — it never starts the game through the
+Mojang launcher. It shows the account chip with a painted cloud badge beside the
+nickname (green for a Microsoft account, grey for an offline profile), the
+installed version, a PLAY button and a live log of install/launch steps.
+
+`--screenshot out.png` renders the same panel headlessly to a PNG, which is
+useful for documentation and for checking layout without a display.
+
 ## Sign in
 
 A Microsoft **client id** is required and cannot be bundled: it identifies the

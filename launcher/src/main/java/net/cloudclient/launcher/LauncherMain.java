@@ -1,5 +1,6 @@
 package net.cloudclient.launcher;
 
+import java.awt.GraphicsEnvironment;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -17,23 +18,31 @@ import net.cloudclient.launcher.auth.MinecraftAuth;
 import net.cloudclient.launcher.game.Downloader;
 import net.cloudclient.launcher.game.LaunchSpec;
 import net.cloudclient.launcher.net.Http;
+import net.cloudclient.launcher.ui.LauncherWindow;
 
 /**
- * Command-line launcher for Cloud Client.
+ * Cloud Client's own launcher.
  *
- * <p>Deliberately dependency-free and terminal-first so it works on a bare Java
- * 8 install with no browser automation:
+ * <p>It does not wrap or drive Mojang's launcher: it authenticates, installs
+ * 1.8.9 + Forge into its own directory, builds the classpath and spawns the game
+ * itself. The same code backs both the window and the terminal:
  *
  * <pre>
- *   java -jar cloud-launcher.jar login      # Microsoft device-code sign in
- *   java -jar cloud-launcher.jar offline Steve
- *   java -jar cloud-launcher.jar launch     # install 1.8.9+Forge if needed, boot
+ *   java -jar cloud-launcher.jar                 # the window (default)
+ *   java -jar cloud-launcher.jar login           # device-code sign in
+ *   java -jar cloud-launcher.jar offline Steve   # offline profile
+ *   java -jar cloud-launcher.jar launch          # install + boot, no window
+ *   java -jar cloud-launcher.jar --screenshot f  # render the window to a PNG
  * </pre>
- *
- * <p>{@code launch --dry-run} resolves everything and prints the exact command
- * without downloading game files or starting the JVM.
  */
 public final class LauncherMain {
+
+    /** Receives human-readable progress from a launch or sign-in. */
+    public interface Log {
+        void line(String message);
+
+        void progress(float fraction);
+    }
 
     private static final String VERSION_MANIFEST =
             "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
@@ -45,9 +54,31 @@ public final class LauncherMain {
     private final File gameDir;
     private String clientId;
     private boolean dryRun;
+    private boolean exitWhenDone = true;
+    private Log log = new ConsoleLog();
 
-    private LauncherMain(File gameDir) {
+    public LauncherMain(File gameDir) {
         this.gameDir = gameDir;
+    }
+
+    public File gameDir() {
+        return gameDir;
+    }
+
+    public void setLog(Log log) {
+        this.log = log == null ? new ConsoleLog() : log;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+
+    public void setDryRun(boolean dryRun) {
+        this.dryRun = dryRun;
+    }
+
+    public void setExitWhenDone(boolean exitWhenDone) {
+        this.exitWhenDone = exitWhenDone;
     }
 
     public static void main(String[] args) {
@@ -61,41 +92,55 @@ public final class LauncherMain {
     }
 
     private static void run(String[] args) throws Exception {
-        if (args.length == 0 || "--help".equals(args[0]) || "-h".equals(args[0])) {
-            usage();
-            return;
-        }
-
         File gameDir = new File(System.getProperty("user.home"), ".cloudclient");
         String clientId = null;
         boolean dryRun = false;
-        String command = args[0];
+        String command = null;
         List<String> rest = new ArrayList<String>();
-        for (int i = 1; i < args.length; i++) {
+
+        for (int i = 0; i < args.length; i++) {
             if ("--game-dir".equals(args[i]) && i + 1 < args.length) {
                 gameDir = new File(args[++i]);
             } else if ("--client-id".equals(args[i]) && i + 1 < args.length) {
                 clientId = args[++i];
             } else if ("--dry-run".equals(args[i])) {
                 dryRun = true;
+            } else if ("--screenshot".equals(args[i]) && i + 1 < args.length) {
+                LauncherWindow.renderPreview(new File(args[++i]));
+                return;
+            } else if (command == null && ("--help".equals(args[i]) || "-h".equals(args[i]))) {
+                command = args[i];
+            } else if (command == null && !args[i].startsWith("-")) {
+                command = args[i];
             } else {
                 rest.add(args[i]);
             }
+        }
+
+        if ("--help".equals(command) || "-h".equals(command)) {
+            usage();
+            return;
         }
 
         LauncherMain launcher = new LauncherMain(gameDir);
         launcher.clientId = clientId;
         launcher.dryRun = dryRun;
 
-        if ("login".equals(command)) {
-            launcher.login();
+        if (command == null) {
+            if (GraphicsEnvironment.isHeadless()) {
+                usage();
+                return;
+            }
+            LauncherWindow.show(gameDir);
+        } else if ("login".equals(command)) {
+            launcher.signIn(clientId);
         } else if ("offline".equals(command)) {
             String name = rest.isEmpty() ? System.getProperty("user.name", "Player") : rest.get(0);
             launcher.saveAccount(Account.offline(name));
-            System.out.println("Using offline profile " + name
+            launcher.log.line("Using offline profile " + name
                     + " (single-player and offline-mode servers only).");
         } else if ("launch".equals(command)) {
-            launcher.launch();
+            launcher.launchGame();
         } else {
             usage();
         }
@@ -103,36 +148,41 @@ public final class LauncherMain {
 
     private static void usage() {
         System.out.println("Cloud Client launcher\n");
+        System.out.println("  (no arguments)           open the launcher window");
         System.out.println("  login [--client-id ID]   sign in with a Microsoft account");
         System.out.println("  offline <name>           create an offline profile");
         System.out.println("  launch [--dry-run]       install 1.8.9 + Forge if needed, then boot");
-        System.out.println("\nOptions: --game-dir DIR (default ~/.cloudclient)");
+        System.out.println("  --screenshot PATH        render the window to a PNG\n");
+        System.out.println("Options: --game-dir DIR (default ~/.cloudclient)");
         System.out.println("Forge: " + FORGE_VERSION);
     }
 
     // ------------------------------------------------------------------- auth
 
-    private void login() throws IOException {
-        String id = MicrosoftAuth.clientId(clientId);
+    /** Device-code sign in. Blocking; call from a worker thread. */
+    public Account signIn(String clientIdOverride) throws IOException {
+        String id = MicrosoftAuth.clientId(clientIdOverride != null ? clientIdOverride : clientId);
         MicrosoftAuth.DeviceCode code = MicrosoftAuth.requestDeviceCode(id);
-        System.out.println("To sign in, open " + code.verificationUri);
-        System.out.println("and enter the code: " + code.userCode);
-        System.out.println("Waiting for sign-in...");
+        log.line("Open " + code.verificationUri + " and enter " + code.userCode);
+        log.line("Waiting for sign-in...");
+        log.progress(0.2F);
         String token = MicrosoftAuth.pollForToken(id, code);
         Account account = MinecraftAuth.login(token);
         saveAccount(account);
-        System.out.println("Signed in as " + account);
+        log.line("Signed in as " + account);
+        log.progress(1.0F);
+        return account;
     }
 
     private File accountFile() {
         return new File(gameDir, "account.json");
     }
 
-    private void saveAccount(Account account) throws IOException {
+    public void saveAccount(Account account) throws IOException {
         if (!gameDir.isDirectory() && !gameDir.mkdirs()) {
             throw new IOException("Cannot create " + gameDir);
         }
-        java.util.Map<String, Object> json = new java.util.LinkedHashMap<String, Object>();
+        Map<String, Object> json = new java.util.LinkedHashMap<String, Object>();
         json.put("username", account.username);
         json.put("uuid", account.uuid);
         json.put("accessToken", account.accessToken);
@@ -149,7 +199,7 @@ public final class LauncherMain {
         restrictPermissions(target);
     }
 
-    private Account loadAccount() throws IOException {
+    public Account loadAccount() throws IOException {
         File file = accountFile();
         if (!file.isFile()) {
             throw new IOException("No saved account. Run `login` or `offline <name>` first.");
@@ -180,15 +230,18 @@ public final class LauncherMain {
 
     // ----------------------------------------------------------------- launch
 
-    private void launch() throws IOException, InterruptedException {
+    /** Installs what is missing and starts the game. Returns when it exits. */
+    public void launchGame() throws Exception {
         Account account = loadAccount();
-        System.out.println("Account: " + account);
+        log.line("Account: " + account);
 
         File versionsDir = new File(gameDir, "versions");
         File librariesDir = new File(gameDir, "libraries");
         File assetsDir = new File(gameDir, "assets");
         File nativesDir = new File(gameDir, "natives");
 
+        log.progress(0.03F);
+        log.line("Reading the version manifest...");
         Map<String, Object> versionJson = fetchJson(VERSION_MANIFEST);
         String versionUrl = null;
         for (Object entry : Json.children(versionJson, "versions")) {
@@ -202,13 +255,14 @@ public final class LauncherMain {
 
         File baseJsonFile = new File(new File(versionsDir, MC_VERSION), MC_VERSION + ".json");
         if (!dryRun && (!baseJsonFile.isFile() || baseJsonFile.length() == 0)) {
-            System.out.println("Downloading 1.8.9 metadata...");
+            log.line("Downloading 1.8.9 metadata...");
             Downloader.fetch(versionUrl, baseJsonFile, null);
         }
         Map<String, Object> baseJson = baseJsonFile.isFile()
                 ? Json.asObject(Json.parse(readFile(baseJsonFile)))
                 : Json.asObject(Json.parse(Http.get(versionUrl).body));
 
+        log.progress(0.1F);
         File forgeJsonFile = dryRun ? findForgeJson(versionsDir) : installForge(baseJsonFile);
         Map<String, Object> forgeJson = null;
         String versionName = MC_VERSION;
@@ -223,11 +277,12 @@ public final class LauncherMain {
         if (!dryRun) {
             Map<String, Object> downloads = Json.child(baseJson, "downloads");
             Map<String, Object> client = downloads == null ? null : Json.child(downloads, "client");
-            if (client != null) {
-                System.out.println("Downloading 1.8.9 client...");
+            if (client != null && (!clientJar.isFile() || clientJar.length() == 0)) {
+                log.line("Downloading the 1.8.9 client...");
                 Downloader.fetch(Json.getString(client, "url", ""), clientJar,
                         Json.getString(client, "sha1", null));
             }
+            log.progress(0.25F);
             downloadLibraries(spec, librariesDir, nativesDir);
             installMod();
         }
@@ -235,23 +290,26 @@ public final class LauncherMain {
         List<String> command = buildCommand(spec, account, versionName, clientJar,
                 librariesDir, nativesDir, assetsDir);
         if (dryRun) {
-            System.out.println("\nResolved launch command (" + command.size() + " args):");
+            log.line("Resolved launch command (" + command.size() + " args):");
             StringBuilder sb = new StringBuilder();
             for (String part : command) {
                 String safe = part.equals(account.accessToken) ? "<access-token>" : part;
                 if (safe.indexOf(' ') >= 0) sb.append('"').append(safe).append("\" ");
                 else sb.append(safe).append(' ');
             }
-            System.out.println(sb.toString().trim());
+            log.line(sb.toString().trim());
             return;
         }
 
-        System.out.println("Launching Cloud Client...");
+        log.progress(1.0F);
+        log.line("Launching Minecraft 1.8.9 with Forge...");
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.directory(gameDir);
         builder.inheritIO();
         Process process = builder.start();
-        System.exit(process.waitFor());
+        int status = process.waitFor();
+        log.line("Minecraft exited with status " + status + ".");
+        if (exitWhenDone) System.exit(status);
     }
 
     private List<String> buildCommand(LaunchSpec spec, Account account, String versionName,
@@ -273,7 +331,7 @@ public final class LauncherMain {
         command.add(classpath.toString());
         command.add(spec.mainClass);
 
-        java.util.Map<String, String> values = new java.util.LinkedHashMap<String, String>();
+        Map<String, String> values = new java.util.LinkedHashMap<String, String>();
         values.put("auth_player_name", account.username);
         values.put("version_name", versionName);
         values.put("game_directory", gameDir.getAbsolutePath());
@@ -302,11 +360,17 @@ public final class LauncherMain {
 
     private void downloadLibraries(LaunchSpec spec, File librariesDir, File nativesDir)
             throws IOException {
+        int index = 0;
         for (LaunchSpec.Library library : spec.libraries) {
             File target = new File(librariesDir, library.path);
             Downloader.fetch(library.url, target, null);
             if (library.nativeJar) extractNatives(target, nativesDir);
+            index++;
+            if (index % 4 == 0) {
+                log.progress(0.25F + 0.3F * (index / (float) spec.libraries.size()));
+            }
         }
+        log.progress(0.55F);
     }
 
     private void extractNatives(File jar, File nativesDir) throws IOException {
@@ -354,10 +418,10 @@ public final class LauncherMain {
 
         File installer = new File(gameDir, "forge-installer.jar");
         String url = FORGE_MAVEN + FORGE_VERSION + "/forge-" + FORGE_VERSION + "-installer.jar";
-        System.out.println("Downloading Forge " + FORGE_VERSION + "...");
+        log.line("Downloading Forge " + FORGE_VERSION + "...");
         Downloader.fetch(url, installer, null);
 
-        System.out.println("Installing Forge (this only happens once)...");
+        log.line("Installing Forge (this only happens once)...");
         List<String> command = new ArrayList<String>();
         command.add(javaBinary());
         command.add("-jar");
@@ -407,20 +471,22 @@ public final class LauncherMain {
         }
         File built = locateBuiltMod();
         if (built == null) {
-            System.out.println("Note: no built cloud-client jar found; "
-                    + "the game will launch without the mod.");
+            log.line("Note: no built cloud-client jar found next to the launcher; "
+                    + "the game will start without the mod.");
             return;
         }
         File target = new File(mods, built.getName());
         copy(built, target);
-        System.out.println("Installed " + target.getName());
+        log.line("Installed " + target.getName());
     }
 
     private static File locateBuiltMod() {
         File[] candidates = {
                 new File("build/libs"),
                 new File("../build/libs"),
-                new File("../../build/libs")
+                new File("../../build/libs"),
+                new File("cloud-client/build/libs"),
+                new File("../cloud-client/build/libs")
         };
         for (File dir : candidates) {
             File[] jars = dir.listFiles();
@@ -473,5 +539,24 @@ public final class LauncherMain {
 
     private static String stripJson(String name) {
         return name.endsWith(".json") ? name.substring(0, name.length() - 5) : name;
+    }
+
+    /** Default sink: prints to stdout so the CLI behaves like a normal tool. */
+    private static final class ConsoleLog implements Log {
+        private float last = -1.0F;
+
+        @Override
+        public void line(String message) {
+            System.out.println(message);
+        }
+
+        @Override
+        public void progress(float fraction) {
+            int percent = Math.round(fraction * 100.0F);
+            if (percent != Math.round(last * 100.0F)) {
+                last = fraction;
+                if (percent < 100) System.out.println("  " + percent + "%");
+            }
+        }
     }
 }

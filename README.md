@@ -48,10 +48,12 @@ This is a large specification, so the honest split between *working*,
   `cloud-client-0.1.0.jar` (115 classes) with JDK 8 + Gradle 2.14.1 +
   ForgeGradle 2.1 against mappings `stable_22`. Every hook is a public Forge
   event; there are **no Mixins and no extra jar to install**.
-- **In-game boot: not verified here.** This machine has no display, and
-  `runClient` cannot finish because ForgeGradle fetches 1.8.9 assets over plain
-  HTTP, which the asset host now rejects. The mod jar is real and reobfuscated,
-  but nobody has seen the menu open yet.
+- **In-game boot: confirmed on a player's machine** (Linux, Forge 11.15.1.2318,
+  NVIDIA GL 4.6). The first boot crashed in `CosmeticWorld.clear()` because it
+  called `clear()` on the unmodifiable view returned by `PetFlock.pets()`; that
+  is fixed by `PetFlock.clear()`. Nothing in this repository has booted the game
+  — `runClient` cannot finish here (headless, and ForgeGradle fetches 1.8.9
+  assets over plain HTTP, which the asset host now rejects).
 - **Performance: unmeasured.** No FPS benchmark has been run. The optimisations
   are structurally sound (render-only culling, source-level particle rejection),
   but any specific "+30% FPS" claim would be invented, so none is made.
@@ -85,10 +87,23 @@ node tools/lint_sources.mjs     # unresolved imports, duplicate types, dangling 
 
 ## Launcher (connect an account, then boot)
 
+Cloud Client ships its own launcher window. It does not start Minecraft through
+the Mojang launcher and has no dependency on it: it authenticates, installs
+1.8.9 + Forge into `~/.cloudclient`, and spawns the game itself.
+
 ```bash
-cd launcher && ./build.sh                 # build/cloud-launcher.jar, no deps
-java -jar build/cloud-launcher.jar login   # Microsoft device-code sign in
-java -jar build/cloud-launcher.jar launch  # installs 1.8.9 + Forge once, copies the mod, boots
+cd launcher && ./build.sh
+java -jar build/cloud-launcher.jar          # the window: account chip, PLAY, log
+```
+
+The window shows a painted cloud badge next to the account name (green when a
+Microsoft account is connected, grey for an offline profile); clicking the chip
+starts sign-in. Headless use still works:
+
+```bash
+java -jar build/cloud-launcher.jar login    # device-code sign in
+java -jar build/cloud-launcher.jar launch   # install + boot, no window
+java -jar build/cloud-launcher.jar --screenshot out.png
 ```
 
 See [launcher/README.md](launcher/README.md) for creating the required Microsoft

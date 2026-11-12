@@ -152,9 +152,11 @@ public final class CosmeticWorld {
         tick++;
     }
 
+    /** Drops all simulation state, e.g. on disconnect or world change. */
     public void clear() {
         players.clear();
-        pets.pets().clear();
+        // pets() is an unmodifiable view; PetFlock.clear() is the mutation path.
+        pets.clear();
     }
 
     public List<Pet> petsSnapshot() {
