@@ -22,13 +22,42 @@ public final class CloudClient {
 
     public static final String MOD_ID = "cloudclient";
     public static final String NAME = "Cloud Client";
-    public static final String VERSION = "0.1.0";
+    public static final String VERSION = "0.1.1";
 
     private static CloudClientRuntime runtime;
 
     @Mod.EventHandler
     public void preInit(FMLPreInitializationEvent event) {
+        // Printed before anything else: when a crash report is pasted, this line
+        // says which build produced it. A stale jar in mods/ was mistaken for a
+        // failed fix once already.
+        event.getModLog().info("Cloud Client " + VERSION + " (build " + buildStamp() + ")");
         runtime = new CloudClientRuntime(event.getSuggestedConfigurationFile());
+    }
+
+    /**
+     * Git hash and build time, written by Gradle's buildStamp task. Returns
+     * "dev" when running from an unpacked IDE output, where the stamp is absent.
+     */
+    public static String buildStamp() {
+        java.io.InputStream in = CloudClient.class
+                .getResourceAsStream("/cloudclient-build.properties");
+        if (in == null) return "dev";
+        try {
+            java.util.Properties properties = new java.util.Properties();
+            properties.load(in);
+            String hash = properties.getProperty("build", "dev");
+            String time = properties.getProperty("time", "");
+            return time.isEmpty() ? hash : hash + " " + time;
+        } catch (Exception e) {
+            return "dev";
+        } finally {
+            try {
+                in.close();
+            } catch (Exception ignored) {
+                // best effort
+            }
+        }
     }
 
     @Mod.EventHandler

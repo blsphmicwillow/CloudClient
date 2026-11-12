@@ -14,7 +14,7 @@
 #
 set -euo pipefail
 
-VERSION="0.1.0"
+VERSION="0.1.1"
 JAR_NAME="cloud-client-${VERSION}.jar"
 MARKER=".cloudclient-installed"
 
@@ -24,6 +24,7 @@ INSTANCE=""
 UNINSTALL=0
 DRY_RUN=0
 LIST_ONLY=0
+FORCE=0
 
 # --------------------------------------------------------------------- output
 if [ -t 1 ] && command -v tput >/dev/null 2>&1 && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
@@ -48,6 +49,7 @@ Options:
   --uninstall         remove Cloud Client from the target instance(s)
   --dry-run           show what would happen, change nothing
   --list              list detected 1.8.9 Forge instances and exit
+  --force             install even if the jar is older than the sources
   -h, --help          this text
 
 Cloud Client has no Mixin dependency: the built jar is the only file needed.
@@ -72,6 +74,7 @@ while [ $# -gt 0 ]; do
     --uninstall) UNINSTALL=1; shift ;;
     --dry-run)   DRY_RUN=1; shift ;;
     --list)      LIST_ONLY=1; shift ;;
+    --force)     FORCE=1; shift ;;
     -h|--help)   usage; exit 0 ;;
     *)           die "Unknown option: $1 (try --help)" ;;
   esac
@@ -196,6 +199,24 @@ PY
 }
 
 # --------------------------------------------------------------- operations
+check_stale() {
+  local jar="$1"
+  [ "$FORCE" -eq 1 ] && return 0
+  [ -d "$SCRIPT_DIR/src" ] || return 0
+  local newer
+  newer="$(find "$SCRIPT_DIR/src" -name '*.java' -newer "$jar" -print -quit 2>/dev/null || true)"
+  if [ -n "$newer" ]; then
+    err "that jar is older than the source tree — it predates your latest fixes."
+    info "   jar:   $jar"
+    info "   newer: ${newer#"$SCRIPT_DIR"/}"
+    info ""
+    info "This is usually a forgotten rebuild, and an old jar keeps old crashes."
+    info "   ./scripts/build.sh     rebuild the mod and the launcher"
+    info "   --force                install this jar anyway"
+    exit 1
+  fi
+}
+
 install_into() {
   local instance="$1"
   local jar="$2"
@@ -293,6 +314,7 @@ if [ "$UNINSTALL" -eq 1 ]; then
 fi
 
 JAR="$(find_jar)" || die "Cloud Client jar not found. Build it first: scripts/build.sh"
+check_stale "$JAR"
 
 verify_jar "$JAR" || true
 info "jar:   $JAR"
@@ -305,5 +327,9 @@ head2 "Next steps"
 info "1. Launch the 1.8.9 Forge profile for that instance."
 info "2. Press ${BOLD}right-shift${RESET} in game to open the module menu."
 info "3. Cosmetics default to a cloud cape; modules can be toggled individually."
+info ""
+info "Own launcher (no Mojang launcher involved):"
+info "  ${BOLD}./cloudclient${RESET}                     open the Cloud Client window"
+info "  ${BOLD}./cloudclient launch${RESET}              boot without a window"
 info ""
 info "Uninstall at any time:  $0 --instance <dir> --uninstall"

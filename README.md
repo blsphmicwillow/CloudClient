@@ -96,9 +96,12 @@ the Mojang launcher and has no dependency on it: it authenticates, installs
 1.8.9 + Forge into `~/.cloudclient`, and spawns the game itself.
 
 ```bash
-cd launcher && ./build.sh
-java -jar build/cloud-launcher.jar          # the window: account chip, PLAY, log
+./cloudclient                                # builds on first use, opens the window
 ```
+
+From the launcher directory instead: `cd launcher && ./build.sh`, then
+`java -jar build/cloud-launcher.jar` (the jar lives in `launcher/build/`, not the
+repository root).
 
 The window shows a painted cloud badge next to the account name (green when a
 Microsoft account is connected, grey for an offline profile); clicking the chip

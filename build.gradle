@@ -70,6 +70,32 @@ processResources {
     }
 }
 
+// Writes the git hash and build time into the jar, so a single log line says
+// exactly which build is running. A stale jar in mods/ once looked like a fix
+// that had not worked.
+def buildStampDir = new File(buildDir, 'generated')
+def buildStampFile = new File(buildStampDir, 'cloudclient-build.properties')
+
+task buildStamp {
+    outputs.file buildStampFile
+    doLast {
+        String hash = 'unknown'
+        try {
+            def process = 'git rev-parse --short HEAD'.execute()
+            process.waitFor()
+            if (process.exitValue() == 0) hash = process.text.trim()
+        } catch (Exception ignored) {
+            // Not a git checkout; the timestamp alone still identifies the build.
+        }
+        buildStampDir.mkdirs()
+        def stamp = 'build=' + hash + '\ntime=' + new Date().format('yyyy-MM-dd HH:mm') + '\n'
+        buildStampFile.text = stamp
+    }
+}
+
+sourceSets.main.resources.srcDir buildStampDir
+processResources.dependsOn buildStamp
+
 jar {
     manifest {
         attributes(

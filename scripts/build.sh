@@ -59,6 +59,12 @@ if [ -z "$JAR" ]; then
 fi
 
 green "Built: $JAR"
+
+# The standalone launcher has no Gradle dependency of its own.
+if [ -x launcher/build.sh ]; then
+  echo "Building the standalone launcher..."
+  ./launcher/build.sh
+fi
 echo
 echo "Next:"
 echo "  ./install.sh --list"

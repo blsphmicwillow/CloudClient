@@ -38,7 +38,7 @@ find src core -name '*.java' > "$OUT/sources.txt" 2>/dev/null || true
 cat > "$OUT/manifest.txt" <<'EOF'
 Main-Class: net.cloudclient.launcher.LauncherMain
 Implementation-Title: Cloud Client Launcher
-Implementation-Version: 0.1.0
+Implementation-Version: 0.1.1
 EOF
 
 "$JAR" cfm "$OUT/cloud-launcher.jar" "$OUT/manifest.txt" -C "$CLASSES" .

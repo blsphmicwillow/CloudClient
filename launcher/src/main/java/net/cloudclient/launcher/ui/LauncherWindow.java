@@ -315,7 +315,7 @@ public final class LauncherWindow {
         private void drawFooter(Graphics2D g) {
             g.setFont(new Font("SansSerif", Font.PLAIN, 11));
             g.setColor(new Color(0x5A6472));
-            g.drawString("Cloud Client 0.1.0  ·  cosmetics are local to your game  ·  "
+            g.drawString("Cloud Client 0.1.1  ·  cosmetics are local to your game  ·  "
                     + "no packets, no reach, no hitbox changes", 44, getHeight() - 20);
         }
 
