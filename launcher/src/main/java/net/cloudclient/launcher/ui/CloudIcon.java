@@ -4,6 +4,7 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.GradientPaint;
 import java.awt.Graphics2D;
+import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
@@ -40,6 +41,80 @@ public final class CloudIcon {
     }
 
     /**
+     * The Cloud Client mark: a rounded app tile with a three-lobe cloud, a
+     * highlight sweep and a small orbit spark. Designed in a 64-unit box so it
+     * stays sharp from a 16px taskbar icon to a 1024px promotional render.
+     */
+    public static void logo(Graphics2D g, float x, float y, float size) {
+        Graphics2D c = (Graphics2D) g.create();
+        antialias(c);
+        c.translate(x, y);
+        float s = size / 64.0F;
+        c.scale(s, s);
+
+        // Tile with a deep vertical gradient.
+        RoundRectangle2D.Float tile = new RoundRectangle2D.Float(0, 0, 64, 64, 19, 19);
+        c.setPaint(new GradientPaint(0, 0, new Color(0x63D3FF), 0, 64,
+                new Color(0x2A5FD8)));
+        c.fill(tile);
+
+        // Top-left sheen, then a darker foot so the tile reads as solid.
+        c.setPaint(new RadialGradientPaint(20.0F, 6.0F, 54.0F,
+                new float[]{0.0F, 1.0F},
+                new Color[]{new Color(255, 255, 255, 90), new Color(255, 255, 255, 0)}));
+        c.fill(tile);
+        c.setPaint(new GradientPaint(0, 40, new Color(0, 0, 0, 0), 0, 64,
+                new Color(6, 22, 60, 90)));
+        c.fill(tile);
+
+        // Cloud: union of the lobes. A plain Path2D punches holes where subpaths
+        // wind in opposite directions, so the shapes are merged as an Area.
+        java.awt.geom.Area cloud = new java.awt.geom.Area(
+                new Ellipse2D.Float(11.0F, 26.0F, 21.0F, 21.0F));
+        cloud.add(new java.awt.geom.Area(new Ellipse2D.Float(21.0F, 17.0F, 24.0F, 24.0F)));
+        cloud.add(new java.awt.geom.Area(new Ellipse2D.Float(33.0F, 25.0F, 19.0F, 19.0F)));
+        cloud.add(new java.awt.geom.Area(
+                new RoundRectangle2D.Float(11.0F, 33.0F, 41.0F, 14.0F, 14.0F, 14.0F)));
+
+        c.setColor(new Color(8, 30, 70, 70));
+        c.translate(0.0F, 1.5F);
+        c.fill(cloud);
+        c.translate(0.0F, -1.5F);
+
+        c.setPaint(new GradientPaint(0, 16, Color.WHITE, 0, 50, new Color(0xDCEFFF)));
+        c.fill(cloud);
+
+        // Small spark at the cloud's shoulder, tying the mark to the "cloud" name.
+        c.setColor(new Color(0xFFE9A8));
+        Path2D.Float spark = new Path2D.Float();
+        spark.moveTo(47.0F, 16.0F);
+        spark.lineTo(49.2F, 21.4F);
+        spark.lineTo(54.6F, 23.6F);
+        spark.lineTo(49.2F, 25.8F);
+        spark.lineTo(47.0F, 31.2F);
+        spark.lineTo(44.8F, 25.8F);
+        spark.lineTo(39.4F, 23.6F);
+        spark.lineTo(44.8F, 21.4F);
+        spark.closePath();
+        c.fill(spark);
+
+        c.dispose();
+    }
+
+    /** Square icon image for the window/taskbar. */
+    public static java.awt.image.BufferedImage icon(int size) {
+        java.awt.image.BufferedImage image = new java.awt.image.BufferedImage(
+                size, size, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            logo(g, 0.0F, 0.0F, size);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    /**
      * A stylised cloud built from three lobes over a rounded base. Drawn rather
      * than font-based so it renders identically with no glyph fallback.
      */
@@ -50,11 +125,12 @@ public final class CloudIcon {
         float s = size / 32.0F;
         copy.scale(s, s);
 
-        Path2D.Float shape = new Path2D.Float();
-        shape.append(new Ellipse2D.Float(3.0F, 12.0F, 13.0F, 13.0F), false);
-        shape.append(new Ellipse2D.Float(12.0F, 7.0F, 15.0F, 15.0F), false);
-        shape.append(new Ellipse2D.Float(20.0F, 12.0F, 10.0F, 11.0F), false);
-        shape.append(new RoundRectangle2D.Float(3.0F, 17.0F, 27.0F, 9.0F, 9.0F, 9.0F), false);
+        java.awt.geom.Area shape = new java.awt.geom.Area(
+                new Ellipse2D.Float(3.0F, 12.0F, 13.0F, 13.0F));
+        shape.add(new java.awt.geom.Area(new Ellipse2D.Float(12.0F, 7.0F, 15.0F, 15.0F)));
+        shape.add(new java.awt.geom.Area(new Ellipse2D.Float(20.0F, 12.0F, 10.0F, 11.0F)));
+        shape.add(new java.awt.geom.Area(
+                new RoundRectangle2D.Float(3.0F, 17.0F, 27.0F, 9.0F, 9.0F, 9.0F)));
 
         copy.setColor(colour);
         copy.fill(shape);

@@ -108,6 +108,9 @@ public final class LauncherMain {
             } else if ("--screenshot".equals(args[i]) && i + 1 < args.length) {
                 LauncherWindow.renderPreview(new File(args[++i]));
                 return;
+            } else if ("--logo".equals(args[i]) && i + 1 < args.length) {
+                writeLogo(new File(args[++i]), 512);
+                return;
             } else if (command == null && ("--help".equals(args[i]) || "-h".equals(args[i]))) {
                 command = args[i];
             } else if (command == null && !args[i].startsWith("-")) {
@@ -148,6 +151,16 @@ public final class LauncherMain {
         }
     }
 
+    /** Renders the mark on its own, for review and for store/packaging art. */
+    private static void writeLogo(File out, int size) throws IOException {
+        java.awt.image.BufferedImage image =
+                net.cloudclient.launcher.ui.CloudIcon.icon(size);
+        File parent = out.getParentFile();
+        if (parent != null && !parent.isDirectory()) parent.mkdirs();
+        javax.imageio.ImageIO.write(image, "png", out);
+        System.out.println("wrote " + out.getAbsolutePath() + " (" + size + "px)");
+    }
+
     private static void usage() {
         System.out.println("Cloud Client launcher\n");
         System.out.println("  (no arguments)           open the launcher window");
@@ -155,7 +168,8 @@ public final class LauncherMain {
         System.out.println("  offline <name>           create an offline profile");
         System.out.println("  launch [--dry-run]       install 1.8.9 + Forge if needed, then boot");
         System.out.println("  assets                   download/repair the 1.8.9 asset objects");
-        System.out.println("  --screenshot PATH        render the window to a PNG\n");
+        System.out.println("  --screenshot PATH        render the window to a PNG");
+        System.out.println("  --logo PATH              render the app mark to a PNG\n");
         System.out.println("Options: --game-dir DIR (default ~/.cloudclient)");
         System.out.println("Forge: " + FORGE_VERSION);
     }
@@ -169,8 +183,8 @@ public final class LauncherMain {
         log.line("Open " + code.verificationUri + " and enter " + code.userCode);
         log.line("Waiting for sign-in...");
         log.progress(0.2F);
-        String token = MicrosoftAuth.pollForToken(id, code);
-        Account account = MinecraftAuth.login(token);
+        MicrosoftAuth.Tokens tokens = MicrosoftAuth.pollForToken(id, code);
+        Account account = MinecraftAuth.login(tokens.accessToken, tokens.refreshToken);
         saveAccount(account);
         log.line("Signed in as " + account);
         log.progress(1.0F);
@@ -189,8 +203,12 @@ public final class LauncherMain {
         json.put("username", account.username);
         json.put("uuid", account.uuid);
         json.put("accessToken", account.accessToken);
+        // Needed to renew the Minecraft token without another sign-in.
+        json.put("refreshToken", account.refreshToken);
         json.put("userType", account.userType);
         json.put("offline", Boolean.valueOf(account.offline));
+        json.put("gamertag", account.gamertag);
+        json.put("xuid", account.xuid);
 
         File target = accountFile();
         FileOutputStream out = new FileOutputStream(target);
@@ -213,9 +231,11 @@ public final class LauncherMain {
                 Json.getString(json, "username", "Player"),
                 Json.getString(json, "uuid", ""),
                 Json.getString(json, "accessToken", "0"),
-                null,
+                Json.getString(json, "refreshToken", null),
                 Json.getString(json, "userType", "legacy"),
-                Json.getBool(json, "offline", true));
+                Json.getBool(json, "offline", true),
+                Json.getString(json, "gamertag", null),
+                Json.getString(json, "xuid", null));
     }
 
     private static void restrictPermissions(File file) {
@@ -233,9 +253,33 @@ public final class LauncherMain {
 
     // ----------------------------------------------------------------- launch
 
+    /**
+     * Renews an expired Microsoft session with the saved refresh token, so a
+     * Microsoft account launches without another sign-in. Refresh tokens are
+     * single-use, so the replacement is written back immediately.
+     */
+    private Account refreshIfNeeded(Account account) {
+        if (account.offline || !account.isExpired() || account.refreshToken == null) {
+            return account;
+        }
+        try {
+            log.line("Renewing your Microsoft session...");
+            MicrosoftAuth.Tokens tokens = MicrosoftAuth.refresh(
+                    MicrosoftAuth.clientId(clientId), account.refreshToken);
+            Account fresh = MinecraftAuth.login(tokens.accessToken, tokens.refreshToken);
+            saveAccount(fresh);
+            log.line("Signed in as " + fresh);
+            return fresh;
+        } catch (Exception e) {
+            log.line("Session renewal failed: " + e.getMessage());
+            log.line("Run `login` to sign in again.");
+            return account;
+        }
+    }
+
     /** Installs what is missing and starts the game. Returns when it exits. */
     public void launchGame() throws Exception {
-        Account account = loadAccount();
+        Account account = refreshIfNeeded(loadAccount());
         log.line("Account: " + account);
 
         File versionsDir = new File(gameDir, "versions");

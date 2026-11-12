@@ -3,10 +3,33 @@
 A dependency-free command-line launcher that installs Minecraft 1.8.9 + Forge,
 drops the Cloud Client mod into `mods/`, and boots the game.
 
-It uses the **Microsoft device-code flow**, so there is no embedded browser, no
-redirect URI, and no web server: the launcher prints a code, you type it at
-`microsoft.com/link` on your phone or another window, and the launcher picks up
-the token.
+## How sign-in works (and why there is no password field)
+
+Microsoft accounts are Xbox accounts, and Minecraft authorises through Xbox
+Live. The chain is:
+
+```
+Microsoft sign-in  ->  Xbox Live token  ->  XSTS token  ->  Minecraft token
+                                                            ->  gamertag + XUID
+```
+
+The launcher shows your **gamertag** in the account chip, with the Minecraft name
+beside it, and stores the XUID as the stable Xbox identity.
+
+**There is deliberately no email/password form.** Microsoft does not offer a
+password grant for consumer accounts: any third-party launcher asking for your
+Microsoft password is either phishing or using an endpoint Microsoft has
+retired. The supported flow is Microsoft's own sign-in page — here as a
+**device code** (no embedded browser, no redirect URI, no local web server):
+
+1. the launcher shows a short code (and the log prints it),
+2. you open `microsoft.com/link` and sign in with your Microsoft email there,
+3. the launcher polls until Xbox authorises Minecraft.
+
+Your password is only ever typed into Microsoft's page, never into this app.
+
+The launcher also stores the OAuth **refresh token** (owner-only `0600`), so it
+renews an expired session on launch instead of asking you to sign in again.
 
 ## Build
 
@@ -31,6 +54,8 @@ installed version, a PLAY button and a live log of install/launch steps.
 
 `--screenshot out.png` renders the same panel headlessly to a PNG, which is
 useful for documentation and for checking layout without a display.
+`--logo out.png` renders the app mark on its own (512px), which is what the
+window, the taskbar icon and packaging art use.
 
 ## Sign in
 

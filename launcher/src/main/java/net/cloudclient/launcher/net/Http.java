@@ -46,6 +46,11 @@ public final class Http {
         return request("GET", url, null, null);
     }
 
+    /** GET with extra headers, e.g. the XSTS bearer for Xbox profile calls. */
+    public static Response get(String url, Map<String, String> headers) throws IOException {
+        return request("GET", url, null, null, null, headers);
+    }
+
     public static Response postForm(String url, Map<String, String> form) throws IOException {
         StringBuilder sb = new StringBuilder();
         for (Map.Entry<String, String> e : form.entrySet()) {
@@ -67,6 +72,12 @@ public final class Http {
 
     private static Response request(String method, String url, String body,
                                     String contentType, String bearer) throws IOException {
+        return request(method, url, body, contentType, bearer, null);
+    }
+
+    private static Response request(String method, String url, String body,
+                                    String contentType, String bearer,
+                                    Map<String, String> headers) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
         conn.setConnectTimeout(CONNECT_TIMEOUT_MS);
         conn.setReadTimeout(READ_TIMEOUT_MS);
@@ -75,6 +86,11 @@ public final class Http {
         conn.setRequestProperty("Accept", "application/json");
         if (contentType != null) conn.setRequestProperty("Content-Type", contentType);
         if (bearer != null) conn.setRequestProperty("Authorization", "Bearer " + bearer);
+        if (headers != null) {
+            for (Map.Entry<String, String> header : headers.entrySet()) {
+                conn.setRequestProperty(header.getKey(), header.getValue());
+            }
+        }
         conn.setInstanceFollowRedirects(true);
 
         if (body != null) {

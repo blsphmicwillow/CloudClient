@@ -109,14 +109,18 @@ From the launcher directory instead: `cd launcher && ./build.sh`, then
 `java -jar build/cloud-launcher.jar` (the jar lives in `launcher/build/`, not the
 repository root).
 
-The window shows a painted cloud badge next to the account name (green when a
-Microsoft account is connected, grey for an offline profile); clicking the chip
-starts sign-in. Headless use still works:
+The window shows the app mark in the header (also used as the taskbar icon), and
+a painted cloud badge next to the account name (blue for an Xbox/Microsoft
+account, grey for an offline profile); clicking the chip starts Xbox sign-in.
+After signing in the chip shows your **gamertag** with the Minecraft name beside
+it, which comes from the Xbox profile service over the XSTS token. Headless use
+still works:
 
 ```bash
 java -jar build/cloud-launcher.jar login    # device-code sign in
 java -jar build/cloud-launcher.jar launch   # install + boot, no window
 java -jar build/cloud-launcher.jar --screenshot out.png
+java -jar build/cloud-launcher.jar --logo mark.png
 ```
 
 See [launcher/README.md](launcher/README.md) for creating the required Microsoft

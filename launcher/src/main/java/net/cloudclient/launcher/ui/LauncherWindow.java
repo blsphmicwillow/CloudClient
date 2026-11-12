@@ -100,6 +100,8 @@ public final class LauncherWindow {
     private void open() {
         frame = new JFrame("Cloud Client");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        // Same mark as the header, so the taskbar entry is recognisable.
+        frame.setIconImage(CloudIcon.icon(64));
         frame.setContentPane(panel);
         frame.setSize(WIDTH, HEIGHT);
         frame.setMinimumSize(new java.awt.Dimension(760, 480));
@@ -115,7 +117,7 @@ public final class LauncherWindow {
 
         private final JTextArea console = new JTextArea();
         private final FlatButton play = new FlatButton("PLAY", true);
-        private final FlatButton signIn = new FlatButton("Sign in with Microsoft", false);
+        private final FlatButton signIn = new FlatButton("Sign in with Xbox", false);
         private final FlatButton offline = new FlatButton("Offline profile", false);
 
         private Account account;
@@ -222,8 +224,7 @@ public final class LauncherWindow {
         }
 
         private void drawHeader(Graphics2D g) {
-            CloudIcon.cloud(g, 40.0F, 26.0F, 44.0F, CloudIcon.ACCENT);
-            CloudIcon.cloud(g, 46.0F, 32.0F, 32.0F, new Color(0xEAF6FF));
+            CloudIcon.logo(g, 34.0F, 18.0F, 56.0F);
 
             g.setFont(new Font("SansSerif", Font.BOLD, 22));
             g.setColor(CloudIcon.TEXT);
@@ -242,9 +243,17 @@ public final class LauncherWindow {
         /** Account chip: cloud badge immediately left of the nickname. */
         private void drawAccount(Graphics2D g) {
             java.awt.Rectangle chip = chipBounds();
-            String name = account == null ? "Not signed in" : account.username;
-            String sub = account == null ? "Click to connect an account"
-                    : (account.offline ? "Offline profile" : "Microsoft account");
+            String name = account == null ? "Not signed in" : account.displayName();
+            String sub;
+            if (account == null) {
+                sub = "Click to sign in with Xbox";
+            } else if (account.offline) {
+                sub = "Offline profile";
+            } else {
+                // Gamertag on top, Minecraft name underneath: the Xbox identity
+                // is what a player recognises.
+                sub = "Xbox  \u00b7  " + account.username;
+            }
 
             int textWidth = Math.max(g.getFontMetrics(new Font("SansSerif", Font.BOLD, 14))
                     .stringWidth(name), g.getFontMetrics(new Font("SansSerif", Font.PLAIN, 11))
@@ -370,8 +379,11 @@ public final class LauncherWindow {
         private void signIn() {
             if (busy) return;
             String id = JOptionPane.showInputDialog(this,
-                    "Microsoft client id (Entra app registration with XboxLive.signin):\n"
-                            + "Leave blank to use CLOUDCLIENT_MSA_CLIENT_ID.",
+                    "Sign in with your Microsoft account (the email tied to your Xbox profile).\n\n"
+                            + "The launcher shows a code for microsoft.com/link; your password is\n"
+                            + "entered on Microsoft's page, never in this app. Xbox Live then\n"
+                            + "authorises Minecraft.\n\n"
+                            + "Microsoft client id (leave blank to use CLOUDCLIENT_MSA_CLIENT_ID):",
                     clientId == null ? "" : clientId);
             if (id == null) return;
             id = id.trim();

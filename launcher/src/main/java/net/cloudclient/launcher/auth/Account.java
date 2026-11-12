@@ -16,17 +16,33 @@ public final class Account {
     /** "msa" for Microsoft accounts; "legacy" for offline/testing profiles. */
     public final String userType;
     public final boolean offline;
+    /** Xbox gamertag, when the profile service answered. */
+    public final String gamertag;
+    /** Xbox user id (XUID), the stable Xbox identity. */
+    public final String xuid;
     public final long obtainedAtMillis;
 
     public Account(String username, String uuid, String accessToken, String refreshToken,
                    String userType, boolean offline) {
+        this(username, uuid, accessToken, refreshToken, userType, offline, null, null);
+    }
+
+    public Account(String username, String uuid, String accessToken, String refreshToken,
+                   String userType, boolean offline, String gamertag, String xuid) {
         this.username = username;
         this.uuid = uuid;
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.userType = userType;
         this.offline = offline;
+        this.gamertag = gamertag;
+        this.xuid = xuid;
         this.obtainedAtMillis = System.currentTimeMillis();
+    }
+
+    /** What to show in the launcher: the Xbox identity when there is one. */
+    public String displayName() {
+        return gamertag != null && !gamertag.trim().isEmpty() ? gamertag : username;
     }
 
     public static Account offline(String username) {
@@ -42,9 +58,13 @@ public final class Account {
         return !offline && System.currentTimeMillis() - obtainedAtMillis > 23L * 60L * 60L * 1000L;
     }
 
-    /** Safe for logs: name and uuid only. */
+    /** Safe for logs: names and ids only, never tokens. */
     @Override
     public String toString() {
-        return username + " (" + uuid + (offline ? ", offline" : "") + ")";
+        String name = gamertag != null && !gamertag.isEmpty()
+                ? gamertag + " / " + username
+                : username;
+        String xbox = xuid != null && !xuid.isEmpty() ? ", xuid " + xuid : "";
+        return name + " (" + uuid + xbox + (offline ? ", offline" : "") + ")";
     }
 }
