@@ -1,6 +1,11 @@
 package net.cloudclient.core;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import net.cloudclient.core.config.CloudConfig;
+import net.cloudclient.core.config.Setting;
 
 /**
  * A single feature: FPS counter, cape renderer, pet AI, entity culling.
@@ -19,6 +24,7 @@ public abstract class Module {
 
     private ModuleContext context;
     private boolean enabled;
+    private final List<Setting> settings = new ArrayList<Setting>();
 
     /** Stable, unique, config-safe id (lowercase, dot-separated). */
     public abstract String id();
@@ -139,6 +145,57 @@ public abstract class Module {
     /** Convenience: a module-scoped config path, e.g. {@code cape.physics.stiffness}. */
     protected final String path(String suffix) {
         return "module." + id() + "." + suffix;
+    }
+
+    // ------------------------------------------------------------- settings
+
+    /** Every setting this module exposes; the menu renders them generically. */
+    public final List<Setting> settings() {
+        return Collections.unmodifiableList(settings);
+    }
+
+    //
+    // These are public rather than protected because module factories declare
+    // settings on a module instance they just constructed, from outside the
+    // subclass.
+    //
+
+    public final Setting declare(Setting setting) {
+        settings.add(setting);
+        return setting;
+    }
+
+    public final Setting settingToggle(String suffix, String label, String description,
+                                       boolean def) {
+        return declare(Setting.toggle(path(suffix), label, description, def));
+    }
+
+    public final Setting settingNumber(String suffix, String label, String description,
+                                       float def, float min, float max) {
+        return declare(Setting.number(path(suffix), label, description, def, min, max));
+    }
+
+    public final Setting settingInt(String suffix, String label, String description,
+                                    int def, int min, int max) {
+        return declare(Setting.integer(path(suffix), label, description, def, min, max));
+    }
+
+    public final Setting settingColour(String suffix, String label, String description,
+                                       int rgb) {
+        return declare(Setting.colour(path(suffix), label, description, rgb));
+    }
+
+    public final Setting settingKey(String suffix, String label, String description,
+                                    int keyCode) {
+        return declare(Setting.keybind(path(suffix), label, description, keyCode));
+    }
+
+    /** Restores every declared setting to its default. */
+    public final void resetSettings() {
+        if (context == null) return;
+        for (Setting setting : settings) {
+            setting.reset(config());
+        }
     }
 
     protected final CloudConfig config() {

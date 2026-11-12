@@ -80,6 +80,7 @@ public final class CloudClientRuntime {
         modules.initAll();
 
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(new net.cloudclient.client.EntityCullHandler());
         ClientRegistry.registerKeyBinding(menuKey);
 
         log.info(CloudClient.NAME + " " + CloudClient.VERSION + " ready ("
@@ -163,12 +164,17 @@ public final class CloudClientRuntime {
         hud.render(this, Minecraft.getMinecraft());
     }
 
-    public void shutdown() {
+    /** Persists config; safe to call from UI actions. */
+    public void saveConfig() {
         try {
             config.save();
         } catch (IOException e) {
             log.error("Could not save config", e);
         }
+    }
+
+    public void shutdown() {
+        saveConfig();
         modules.shutdownAll();
     }
 

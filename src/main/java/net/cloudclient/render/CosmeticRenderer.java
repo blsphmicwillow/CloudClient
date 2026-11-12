@@ -137,7 +137,7 @@ public final class CosmeticRenderer {
 
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
-        renderer.startDrawing(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
+        renderer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
 
         for (int row = 0; row < CapeSimulation.ROWS; row++) {
             for (int col = 0; col < CapeSimulation.COLS; col++) {
@@ -167,7 +167,7 @@ public final class CosmeticRenderer {
         mc.getTextureManager().bindTexture(WING_TEXTURE);
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
-        renderer.startDrawing(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
+        renderer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
 
         emitWing(renderer, state, false);
         emitWing(renderer, state, true);
@@ -225,7 +225,7 @@ public final class CosmeticRenderer {
 
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
-        renderer.startDrawing(GL11.GL_TRIANGLES, DefaultVertexFormats.POSITION_TEX);
+        renderer.begin(GL11.GL_TRIANGLES, DefaultVertexFormats.POSITION_TEX);
 
         float[] positions = haloMesh.positions;
         int[] indices = haloMesh.indices;
@@ -251,7 +251,7 @@ public final class CosmeticRenderer {
 
         Tessellator tessellator = Tessellator.getInstance();
         WorldRenderer renderer = tessellator.getWorldRenderer();
-        renderer.startDrawing(GL11.GL_TRIANGLES, DefaultVertexFormats.POSITION_TEX);
+        renderer.begin(GL11.GL_TRIANGLES, DefaultVertexFormats.POSITION_TEX);
 
         emitHorn(renderer, state, true);
         emitHorn(renderer, state, false);
@@ -293,7 +293,7 @@ public final class CosmeticRenderer {
                     + 0.35D + runtime.cosmetics().pets().bob(pet);
             double pz = pet.position().z - mc.getRenderManager().viewerPosZ;
             GlStateManager.color(pet.tintR(), pet.tintG(), pet.tintB(), 1.0F);
-            renderer.startDrawing(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
+            renderer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
             emitCube(renderer, px, py, pz, size);
             tessellator.draw();
         }

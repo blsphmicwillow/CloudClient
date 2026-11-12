@@ -5,6 +5,10 @@
  * 2.1, which needs Gradle 2.14.x and a JDK 8 toolchain. Do not "upgrade" these
  * to modern Forge: 1.8.9 has no newer Forge.
  *
+ * No Mixin: every hook this mod needs is a public Forge event. That keeps the
+ * jar self-contained (nothing else to install) and avoids the 1.8.9 annotation
+ * processor's MCP -> notch mapping problems.
+ *
  * Layout: all platform-independent engine code lives in src/core/java and has
  * no Minecraft imports, so it can be compiled and unit-tested with a bare JDK
  * (see tools/). The Forge glue lives in src/main/java.
@@ -12,7 +16,6 @@
 buildscript {
     repositories {
         maven { url = 'https://maven.minecraftforge.net' }
-        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
         mavenCentral()
     }
     dependencies {
@@ -25,7 +28,7 @@ apply plugin: 'net.minecraftforge.gradle.forge'
 
 version = project.mod_version
 group = project.mod_group
-archivesBaseName = project.mod_id
+archivesBaseName = 'cloud-client'
 
 sourceCompatibility = '1.8'
 targetCompatibility = '1.8'
@@ -33,23 +36,17 @@ targetCompatibility = '1.8'
 minecraft {
     version = "${project.minecraft_version}-${project.forge_version}"
     runDir = 'run'
+    // stable_20 was purged from Forge's maven; stable_22 is the remaining
+    // 1.8.9 mappings channel and is what this project is built against.
     mappings = project.mappings_version
 }
 
 repositories {
-    maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
+    mavenCentral()
 }
 
 dependencies {
-    // Shipped alongside the mod jar at runtime. Forge already provides Guava,
-    // Gson and commons-io, so they must not be bundled again.
-    compile('org.spongepowered:mixin:0.7.11-SNAPSHOT') {
-        exclude module: 'guava'
-        exclude module: 'gson'
-        exclude module: 'commons-io'
-        exclude module: 'launchwrapper'
-        exclude module: 'asm-debug-all'
-    }
+    // Intentionally empty: no runtime dependencies outside Forge itself.
 }
 
 sourceSets {
@@ -76,24 +73,23 @@ processResources {
 jar {
     manifest {
         attributes(
-                // MixinTweaker must run before Forge's mod loading starts.
-                'TweakClass': 'org.spongepowered.asm.launch.MixinTweaker',
-                'MixinConfigs': 'mixins.cloudclient.json',
-                'FMLCorePluginContainsFMLMod': 'true',
-                'ForceLoadAsMod': 'true',
-                'Implementation-Version': project.version
+                'Implementation-Version': project.version,
+                'FMLAT': ''
         )
     }
 }
 
-// Dev runs need the tweaker too, since the manifest attribute is ignored when
-// Gradle launches the game directly.
-runClient {
-    args '--tweakClass', 'org.spongepowered.asm.launch.MixinTweaker'
-}
-
-task coreTest(type: JavaExec, dependsOn: 'compileJava') {
-    description = 'Runs the platform-independent engine tests on a bare JVM.'
+// Runs the platform-independent engine tests on a bare JVM.
+task coreTest(type: JavaExec, dependsOn: 'classes') {
+    description = 'Runs the engine tests (no Minecraft needed for the logic itself).'
     classpath = sourceSets.main.runtimeClasspath
     main = 'net.cloudclient.test.CoreTests'
+}
+
+// Prints the dev launch classpath so the game can be started without
+// ForgeGradle's (now broken) http:// asset downloader.
+task printClasspath {
+    doLast {
+        println sourceSets.main.runtimeClasspath.asPath
+    }
 }

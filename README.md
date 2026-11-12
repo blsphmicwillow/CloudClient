@@ -24,12 +24,13 @@ This is a large specification, so the honest split between *working*,
 | Halos | **Done** | Ring mesh, spin, brightness pulse, hover |
 | Horns | **Done** | Procedural tapered tube, rigid/curved, scale/pitch/yaw |
 | Local pets | **Partial** | Boid separation + spring follow + shoulder riding work; pets render as tinted cubes, **vanilla mob models are not wired up yet** |
-| Cosmetic renderer | **Scaffolded** | Batched Tessellator draws, animated texture V-offset, LOD math. **Not compiled here** — see verification below |
+| Cosmetic renderer | **Done** | Batched Tessellator draws, animated texture V-offset, LOD math; compiles against 1.8.9 |
 | `.cloudpack` format + loader | **Done** | Zip-slip rejection, size/poly budgets, PNG header checks, script rejection, registry |
-| HUD (FPS, CPS, keystrokes, armour) | **Scaffolded** | Written against 1.8.9 MCP names; not compiled here |
-| Entity culling | **Scaffolded** | Render-only, never culls players or dropped items, off by default |
-| Particle filtering | **Scaffolded** | Crit/potion/block-break only, off by default |
-| Dynamic render distance | **Scaffolded** | Hysteresis + cooldown; off by default |
+| HUD (FPS, CPS, keystrokes, armour) | **Done** | Positions come from `HudLayout`, editable by dragging in the menu |
+| Mod menu (right-shift) | **Done** | Searchable module list, sliders, toggles, colour cycling, keybind capture, HUD drag editor; settings are declared per module, so the UI is generic |
+| Entity culling | **Done** | `RenderLivingEvent.Pre`, render-only, never culls players or dropped items, off by default |
+| Dynamic render distance | **Done** | Hysteresis + cooldown; off by default |
+| Launcher (account + boot) | **MVP** | Device-code Microsoft login, 1.8.9 + Forge install, classpath/natives assembly, offline UUIDs; `--dry-run` verified, a full boot is not |
 | Chunk-mesh worker pool | **Not started** | Multi-threaded `RenderChunk` replacement is the single largest remaining perf task |
 | LWJGL3 bridge | **Not started** | Optional path only; see roadmap |
 | Friends / parties / replay | **Not started** | Needs a backend; deliberately out of scope for a client-only build |
@@ -43,12 +44,14 @@ This is a large specification, so the honest split between *working*,
   anchor transforms, matrices, fast maths, cape stability, wing motion, pet
   flocking, halo/horn geometry, LOD continuity, profile round-trips and the pack
   loader's reject cases.
-- **Forge/Mixin layer: not compiled.** This machine has no Forge 1.8.9 toolchain
-  (ForgeGradle 2.1 requires a JDK 8 Gradle 2.14 setup and network access to the
-  legacy Forge maven). That code was written against 1.8.9 MCP names but has
-  **never been built or run**. Expect to fix mapping mismatches on first build;
-  the two most likely places are `CosmeticRenderer` (Tessellator/WorldRenderer
-  method names) and the two mixin target signatures.
+- **Forge layer: compiles.** `gradle build` produces a reobfuscated
+  `cloud-client-0.1.0.jar` (115 classes) with JDK 8 + Gradle 2.14.1 +
+  ForgeGradle 2.1 against mappings `stable_22`. Every hook is a public Forge
+  event; there are **no Mixins and no extra jar to install**.
+- **In-game boot: not verified here.** This machine has no display, and
+  `runClient` cannot finish because ForgeGradle fetches 1.8.9 assets over plain
+  HTTP, which the asset host now rejects. The mod jar is real and reobfuscated,
+  but nobody has seen the menu open yet.
 - **Performance: unmeasured.** No FPS benchmark has been run. The optimisations
   are structurally sound (render-only culling, source-level particle rejection),
   but any specific "+30% FPS" claim would be invented, so none is made.
@@ -66,17 +69,30 @@ gradle build                    # jar in build/libs/
 gradle runClient                # dev client, keybind: right-shift
 ```
 
-Mixin must be present at runtime. For a distributed build, drop
-`mixin-0.7.11-SNAPSHOT.jar` into the `mods/` folder alongside the Cloud Client
-jar; `gradle runClient` picks it up from the compile classpath.
+No Mixin, no tweaker, no extra runtime jar: drop the built jar into `mods/`.
+`gradle runClient` is provided by ForgeGradle but is not usable on a headless
+box (see verification).
 
 Run the engine tests without Minecraft:
 
 ```bash
 javac --release 8 -d out $(find src/core/java tools/test -name '*.java')
 java -cp out net.cloudclient.test.CoreTests
+java -cp out net.cloudclient.test.SettingsTests
 java -cp out net.cloudclient.test.TextureCheck
+node tools/lint_sources.mjs     # unresolved imports, duplicate types, dangling module ids
 ```
+
+## Launcher (connect an account, then boot)
+
+```bash
+cd launcher && ./build.sh                 # build/cloud-launcher.jar, no deps
+java -jar build/cloud-launcher.jar login   # Microsoft device-code sign in
+java -jar build/cloud-launcher.jar launch  # installs 1.8.9 + Forge once, copies the mod, boots
+```
+
+See [launcher/README.md](launcher/README.md) for creating the required Microsoft
+client id, offline profiles, and `launch --dry-run`.
 
 ## Installing on Linux
 
@@ -87,7 +103,6 @@ their `mmc-pack.json` / `minecraftinstance.json` (Minecraft 1.8.9 + Forge).
 
 ```bash
 ./scripts/build.sh                 # builds the jar, runs the engine tests first
-./scripts/fetch_mixin.sh           # once: 1.8.9 Forge does not ship Mixin
 ./install.sh --list                # show detected 1.8.9 Forge instances
 ./install.sh                       # install into all of them
 ```
@@ -99,8 +114,6 @@ Useful flags:
 | `--instance DIR` | target one instance explicitly |
 | `--dry-run` | print every action, change nothing |
 | `--uninstall` | remove the client from the target instance(s) |
-| `--mixin PATH` | use a specific Mixin jar |
-| `--allow-missing-mixin` | install without Mixin (the client will not launch) |
 
 What it does, precisely:
 
@@ -109,8 +122,7 @@ What it does, precisely:
 - backs up an identical existing jar to `*.bak` instead of overwriting silently;
 - removes older `cloud-client-*.jar` versions so two builds can't load at once;
 - writes `mods/.cloudclient-installed` as a marker;
-- on `--uninstall`, removes only the client jar and marker, and leaves the Mixin
-  jar alone because other mods may share it.
+- on `--uninstall`, removes only the client jar and its marker.
 
 Nothing is written outside the instance directory, and no `sudo` is needed.
 
@@ -142,13 +154,15 @@ src/core/java/net/cloudclient/     no Minecraft imports; unit-tested
   cosmetic/      anchors, profile, CosmeticWorld, cape/, wings/, halo/, horns/, pet/
   pack/          .cloudpack manifest, PNG header reader, loader, registry
 
-src/main/java/net/cloudclient/     Forge 1.8.9 glue (not compiled in this repo)
+launcher/src/main/java/             dependency-free CLI launcher (account, install, boot)
+
+src/main/java/net/cloudclient/     Forge 1.8.9 glue
   CloudClient    @Mod entry point
   client/        CosmeticTicker (data extraction), CullingFilter, ParticleFilter
   render/        CosmeticRenderer (batched Tessellator draws)
-  hud/ gui/      overlay and module menu
+  hud/ gui/      HUD overlay and the right-shift module menu
   module/        cosmetic + performance module definitions
-  mixin/         RenderManager culling, EffectRenderer particle filter
+  client/        EntityCullHandler (Forge event, no Mixin)
 ```
 
 Design rules that keep it maintainable:

@@ -12,8 +12,7 @@ does not do.
 | Cosmetics are never replicated: no packets, no custom channel, no payload | `CosmeticWorld`, `CosmeticRenderer` |
 | Players are never culled from rendering | `CullingFilter` |
 | Dropped items are never culled | `CullingFilter` |
-| Particle filtering only matches cosmetic particle classes | `ParticleFilter` |
-| Culling is render-only; entity ticking and hit detection are untouched | `MixinRenderManager` |
+| Culling is render-only; entity ticking and hit detection are untouched | `EntityCullHandler` (`RenderLivingEvent.Pre`) |
 | Cosmetic modules cannot alter movement, reach, hitboxes or timing | whole tree — there is no code path that writes to player state |
 
 Cosmetics are **local to your own game**. Your cape, wings, halo, horns and pets

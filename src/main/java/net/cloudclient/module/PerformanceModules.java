@@ -10,14 +10,9 @@ import net.minecraft.client.Minecraft;
 /**
  * Performance modules.
  *
- * <p>Defaults are deliberately conservative and fair-play safe:
- * <ul>
- *   <li>Entity culling is <b>off</b> by default and never culls players.</li>
- *   <li>Particle filtering is <b>off</b> by default and only ever suppresses
- *       cosmetic particle spawns, never entity hit detection.</li>
- *   <li>Dynamic render distance is <b>off</b> by default because changing video
- *       settings mid-fight surprises people.</li>
- * </ul>
+ * <p>Defaults are conservative and fair-play safe: entity culling is off and
+ * never touches players or dropped items, and dynamic render distance is off
+ * because changing video settings mid-fight surprises people.
  */
 public final class PerformanceModules {
 
@@ -26,19 +21,21 @@ public final class PerformanceModules {
 
     public static List<Module> create(final CloudClientRuntime runtime) {
         List<Module> modules = new ArrayList<Module>();
-        modules.add(new CosmeticModules.Toggle("performance.entity_culling",
-                "Entity Culling",
-                "Skip rendering distant non-player entities", 500, false));
-        modules.add(new CosmeticModules.Toggle("performance.pvp_particles",
-                "PvP Particles",
-                "Suppress crit/potion/block-break particles at the source", 510, false));
+
+        CosmeticModules.Toggle culling = new CosmeticModules.Toggle("performance.entity_culling",
+                "Entity Culling", "Skip rendering distant non-player mobs", 500, false);
+        culling.settingInt("distance", "Distance", "Cull mobs beyond this many blocks",
+                64, 16, 160);
+        modules.add(culling);
+
         modules.add(new DynamicRenderDistance());
         return modules;
     }
 
     /**
-     * Lowers render distance when the frame rate is poor and restores it when
-     * the frame rate recovers. Uses hysteresis so it cannot oscillate.
+     * Lowers render distance when the frame rate is poor and restores it when the
+     * frame rate recovers. Cooldowns plus separate low/high thresholds prevent
+     * oscillation.
      */
     public static final class DynamicRenderDistance extends Module {
         private int baseline = -1;
@@ -70,6 +67,16 @@ public final class PerformanceModules {
         }
 
         @Override
+        protected void onInit(net.cloudclient.core.ModuleContext context) {
+            settingInt("min_chunks", "Minimum Chunks", "Never go below this render distance",
+                    4, 2, 16);
+            settingInt("fps_low", "Drop Below FPS", "Lower render distance under this frame rate",
+                    45, 15, 120);
+            settingInt("fps_high", "Restore Above FPS", "Raise render distance above this frame rate",
+                    75, 30, 240);
+        }
+
+        @Override
         protected void onEnable() {
             Minecraft mc = Minecraft.getMinecraft();
             baseline = mc == null ? -1 : mc.gameSettings.renderDistanceChunks;
@@ -85,10 +92,9 @@ public final class PerformanceModules {
 
         /** Called from the client tick. */
         public void tick(Minecraft mc) {
-            if (!isEnabled() || mc.gameSettings.hideGUI) return;
+            if (!isEnabled()) return;
             if (baseline <= 0) baseline = mc.gameSettings.renderDistanceChunks;
 
-            int fps = Minecraft.getDebugFPS();
             int min = config().getIntClamped(path("min_chunks"), 4, 2, 16);
             int current = mc.gameSettings.renderDistanceChunks;
 
@@ -96,13 +102,15 @@ public final class PerformanceModules {
                 cooldown--;
                 return;
             }
-            int lowThreshold = config().getInt(path("fps_low"), 45);
-            int highThreshold = config().getInt(path("fps_high"), 75);
+            int low = config().getIntClamped(path("fps_low"), 45, 15, 120);
+            int high = config().getIntClamped(path("fps_high"), 75, 30, 240);
+            if (high <= low) high = low + 10;
 
-            if (fps < lowThreshold && current > min) {
+            int fps = Minecraft.getDebugFPS();
+            if (fps < low && current > min) {
                 mc.gameSettings.renderDistanceChunks = current - 1;
                 cooldown = 60;
-            } else if (fps > highThreshold && current < baseline) {
+            } else if (fps > high && current < baseline) {
                 mc.gameSettings.renderDistanceChunks = current + 1;
                 cooldown = 100;
             }

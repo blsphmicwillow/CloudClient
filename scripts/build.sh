@@ -61,6 +61,5 @@ fi
 green "Built: $JAR"
 echo
 echo "Next:"
-echo "  ./scripts/fetch_mixin.sh     # once, if libs/ has no mixin jar"
 echo "  ./install.sh --list"
 echo "  ./install.sh --instance <your 1.8.9 forge instance>"

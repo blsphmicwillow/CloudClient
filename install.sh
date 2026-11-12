@@ -16,17 +16,14 @@ set -euo pipefail
 
 VERSION="0.1.0"
 JAR_NAME="cloud-client-${VERSION}.jar"
-MIXIN_NAME="mixin-0.7.11-SNAPSHOT.jar"
 MARKER=".cloudclient-installed"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 INSTANCE=""
-MIXIN_PATH=""
 UNINSTALL=0
 DRY_RUN=0
 LIST_ONLY=0
-ALLOW_MISSING_MIXIN=0
 
 # --------------------------------------------------------------------- output
 if [ -t 1 ] && command -v tput >/dev/null 2>&1 && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
@@ -48,15 +45,12 @@ usage() {
 
 Options:
   --instance DIR      install into this instance (skips auto-detection)
-  --mixin PATH        path to the Mixin jar for 1.8.9
   --uninstall         remove Cloud Client from the target instance(s)
   --dry-run           show what would happen, change nothing
   --list              list detected 1.8.9 Forge instances and exit
-  --allow-missing-mixin  install even if Mixin is absent (client will not launch)
   -h, --help          this text
 
-The client needs the Mixin jar in mods/ as well, because 1.8.9 Forge does not
-ship it. Run scripts/fetch_mixin.sh once and this installer will find it.
+Cloud Client has no Mixin dependency: the built jar is the only file needed.
 EOF
 }
 
@@ -75,12 +69,9 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --instance)  [ $# -ge 2 ] || die "--instance needs a path"; INSTANCE="$2"; shift 2 ;;
     --instance=*) INSTANCE="${1#*=}"; shift ;;
-    --mixin)     [ $# -ge 2 ] || die "--mixin needs a path"; MIXIN_PATH="$2"; shift 2 ;;
-    --mixin=*)   MIXIN_PATH="${1#*=}"; shift ;;
     --uninstall) UNINSTALL=1; shift ;;
     --dry-run)   DRY_RUN=1; shift ;;
     --list)      LIST_ONLY=1; shift ;;
-    --allow-missing-mixin) ALLOW_MISSING_MIXIN=1; shift ;;
     -h|--help)   usage; exit 0 ;;
     *)           die "Unknown option: $1 (try --help)" ;;
   esac
@@ -172,28 +163,7 @@ find_jar() {
   done
   # Fall back to any cloud-client jar present.
   local any
-  any="$(find "$SCRIPT_DIR/build/libs" "$SCRIPT_DIR/libs" -maxdepth 1 -name 'cloud-client-*.jar' 2>/dev/null | head -n1 || true)"
-  if [ -n "$any" ]; then printf '%s\n' "$any"; return 0; fi
-  return 1
-}
-
-find_mixin() {
-  if [ -n "$MIXIN_PATH" ]; then
-    [ -f "$MIXIN_PATH" ] || die "Mixin jar not found: $MIXIN_PATH"
-    printf '%s\n' "$MIXIN_PATH"
-    return 0
-  fi
-  local candidates=(
-    "$SCRIPT_DIR/libs/$MIXIN_NAME"
-    "$SCRIPT_DIR/libs/mixin-0.7.11-SNAPSHOT.jar"
-    "$SCRIPT_DIR/$MIXIN_NAME"
-  )
-  local c
-  for c in "${candidates[@]}"; do
-    if [ -f "$c" ]; then printf '%s\n' "$c"; return 0; fi
-  done
-  local any
-  any="$(find "$SCRIPT_DIR/libs" -maxdepth 1 -name 'mixin-*.jar' 2>/dev/null | head -n1 || true)"
+  any="$(find "$SCRIPT_DIR/build/libs" "$SCRIPT_DIR/libs" -maxdepth 1 \( -name 'cloud-client-*.jar' -o -name 'cloudclient-*.jar' \) ! -name '*-sources.jar' 2>/dev/null | head -n1 || true)"
   if [ -n "$any" ]; then printf '%s\n' "$any"; return 0; fi
   return 1
 }
@@ -229,7 +199,6 @@ PY
 install_into() {
   local instance="$1"
   local jar="$2"
-  local mixin="$3"
   local mods="$instance/mods"
 
   head2 "Installing into $instance"
@@ -240,14 +209,14 @@ install_into() {
     local old
     while IFS= read -r -d '' old; do
       case "$(basename "$old")" in
-        cloud-client-*.jar)
+        cloud-client-*.jar|cloudclient-*.jar)
           if [ "$(basename "$old")" != "$JAR_NAME" ]; then
             run rm -f "$old"
             info "   removed old $(basename "$old")"
           fi
           ;;
       esac
-    done < <(find "$mods" -maxdepth 1 -name 'cloud-client-*.jar' -print0 2>/dev/null)
+    done < <(find "$mods" -maxdepth 1 \( -name 'cloud-client-*.jar' -o -name 'cloudclient-*.jar' \) -print0 2>/dev/null)
   fi
 
   # Back up an identical existing jar rather than silently overwriting it.
@@ -259,14 +228,6 @@ install_into() {
 
   run cp -f "$jar" "$mods/$JAR_NAME"
   ok "installed $JAR_NAME"
-
-  if [ -n "$mixin" ]; then
-    run cp -f "$mixin" "$mods/$MIXIN_NAME"
-    ok "installed $MIXIN_NAME"
-  else
-    warn "Mixin jar not found — Cloud Client will not launch without it."
-    warn "Run: $SCRIPT_DIR/scripts/fetch_mixin.sh"
-  fi
 
   if [ "$DRY_RUN" -eq 0 ]; then
     {
@@ -291,12 +252,8 @@ uninstall_from() {
     run rm -f "$f"
     info "   removed $(basename "$f")"
     removed=1
-  done < <(find "$mods" -maxdepth 1 \( -name 'cloud-client-*.jar' -o -name "$MARKER" \) -print0 2>/dev/null)
+  done < <(find "$mods" -maxdepth 1 \( -name 'cloud-client-*.jar' -o -name 'cloudclient-*.jar' -o -name "$MARKER" \) -print0 2>/dev/null)
 
-  # Only remove the Mixin jar if we put it there (marker existed).
-  if [ "$removed" -eq 1 ] && [ -f "$mods/$MIXIN_NAME" ]; then
-    info "   left $MIXIN_NAME in place (shared with other mods)"
-  fi
   ok "done"
 }
 
@@ -336,21 +293,12 @@ if [ "$UNINSTALL" -eq 1 ]; then
 fi
 
 JAR="$(find_jar)" || die "Cloud Client jar not found. Build it first: scripts/build.sh"
-MIXIN="$(find_mixin || true)"
-if [ -z "$MIXIN" ] && [ "$ALLOW_MISSING_MIXIN" -eq 0 ]; then
-  warn "Mixin jar not found. It is required on 1.8.9."
-  info "  $SCRIPT_DIR/scripts/fetch_mixin.sh"
-  info "or pass --mixin /path/to/mixin-0.7.11-SNAPSHOT.jar"
-  info "(use --allow-missing-mixin to install anyway)"
-  exit 1
-fi
 
 verify_jar "$JAR" || true
 info "jar:   $JAR"
-[ -n "$MIXIN" ] && info "mixin: $MIXIN"
 
 for t in "${TARGETS[@]}"; do
-  install_into "$t" "$JAR" "$MIXIN"
+  install_into "$t" "$JAR"
 done
 
 head2 "Next steps"
